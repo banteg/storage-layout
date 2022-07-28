@@ -53,10 +53,18 @@ def get_storage_values(account, keys):
 
 def get_storage_diff(txhash: str):
     state_diff = make_request("trace_replayTransaction", [txhash, ["stateDiff"]])["stateDiff"]
-    storage_diff = {
-        contract: {slot: item["*"]["to"] for slot, item in diff["storage"].items()}
-        for contract, diff in state_diff.items()
-    }
+    storage_diff = {}
+    for contract, diff in state_diff.items():
+        storage_diff[contract] = {}
+        for slot, change in diff["storage"].items():
+            for op, delta in change.items():
+                if op == "+":
+                    storage_diff[contract][slot] = delta
+                elif op == "*":
+                    storage_diff[contract][slot] = delta["to"]
+                else:
+                    raise NotImplementedError(f"op {op} in state diff")
+
     return valfilter(bool, storage_diff)
 
 
@@ -77,6 +85,8 @@ def find_preimages(txhash: str):
     for frame in vmtrace.to_trace_frames(trace):
         if frame.op == "SHA3":
             size, offset = [to_int(x) for x in frame.stack[-2:]]
+            if size != 64:
+                continue
             preimage = HexBytes(frame.memory[offset : offset + size])
             hashed = HexBytes(keccak(preimage))
             key, slot = preimage[:32], preimage[32:]
@@ -144,10 +154,11 @@ def layout(txhash: str):
 
     for contract, storage in storage_diff.items():
         if contract not in slot_lookup:
-            print(f"no layout avaiable for {contract}")
             continue
         for slot, value in storage.items():
             item = unwrap_slot(slot, value, preimages, slot_lookup[contract])
+            if item is None:
+                continue
             decoded = decode_types(item)
             results[contract].update(decoded)
 

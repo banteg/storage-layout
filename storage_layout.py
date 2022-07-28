@@ -1,3 +1,4 @@
+from collections import defaultdict
 import json
 from typing import Dict, List, Tuple
 
@@ -9,7 +10,7 @@ from evm_trace import vmtrace
 from hexbytes import HexBytes
 from eth_utils import keccak, encode_hex
 from toolz import valfilter
-from eth_abi import encode_single
+from eth_abi import decode_single, encode_single
 
 app = Typer()
 
@@ -115,6 +116,19 @@ def unwrap_slot(slot, value, preimages, slot_lookup):
     return unwrap(slot, [])
 
 
+def decode_types(item):
+    values = b"".join(HexBytes(i) for i in item["path"]) + HexBytes(item["value"])
+    decoded = decode_single(item["abi_type"], values)
+    out = decoded
+
+    if item["path"]:
+        out = decoded[-1]
+        for p, v in zip(item["path"], decoded):
+            out = {v: out}
+
+    return {item["name"]: out}
+
+
 @app.command()
 def layout(txhash: str):
     storage_layout = {"0xda816459f1ab5631232fe5e97a05bbbb94970c95": json.load(open("layout.json"))}
@@ -122,13 +136,12 @@ def layout(txhash: str):
         contract: {int_to_bytes32(item["pos"]): item for item in data}
         for contract, data in storage_layout.items()
     }
-    # debug(storage_layout)
 
     storage_diff = get_storage_diff(txhash)
-    # debug(storage_diff)
 
     preimages = find_preimages(txhash)
-    debug(preimages)
+
+    results = defaultdict(dict)
 
     for contract, storage in storage_diff.items():
         if contract not in slot_lookup:
@@ -136,7 +149,10 @@ def layout(txhash: str):
             continue
         for slot, value in storage.items():
             item = unwrap_slot(slot, value, preimages, slot_lookup[contract])
-            debug(item)
+            decoded = decode_types(item)
+            results[contract].update(decoded)
+
+    debug(results)
 
 
 if __name__ == "__main__":

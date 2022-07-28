@@ -7,8 +7,9 @@ from devtools import debug
 from typer import Typer
 from evm_trace import vmtrace
 from hexbytes import HexBytes
-from eth_utils import keccak
+from eth_utils import keccak, encode_hex
 from toolz import valfilter
+from eth_abi import encode_single
 
 app = Typer()
 
@@ -49,7 +50,7 @@ def get_storage_values(account, keys):
     return list(values)
 
 
-def get_state_diff(txhash: str):
+def get_storage_diff(txhash: str):
     state_diff = make_request("trace_replayTransaction", [txhash, ["stateDiff"]])["stateDiff"]
     storage_diff = {
         contract: {slot: item["*"]["to"] for slot, item in diff["storage"].items()}
@@ -59,7 +60,12 @@ def get_state_diff(txhash: str):
 
 
 def to_int(value):
-    return int.from_bytes(value, "big")
+    if isinstance(value, str):
+        return int(value, 16)
+    if isinstance(value, bytes):
+        return int.from_bytes(value, "big")
+
+    raise ValueError("invalid type %s", type(value))
 
 
 @app.command()
@@ -75,13 +81,10 @@ def find_preimages(txhash: str):
             hashed = HexBytes(keccak(preimage))
             key, slot = preimage[:32], preimage[32:]
             preimages[hashed.hex()] = {"key": key.hex(), "slot": slot.hex()}
-            debug("found preimage", size, offset, preimage, key, slot)
 
         if frame.op == "SSTORE":
             value, slot = frame.stack[-2:]
-            debug(slot, value, slot in preimages)
 
-    debug(preimages)
     return preimages
 
 
@@ -94,18 +97,46 @@ def storage(contract: str):
     debug(kv)
 
 
+def int_to_bytes32(value):
+    return encode_hex(encode_single("uint256", value))
+
+
+def unwrap_slot(slot, value, preimages, slot_lookup):
+    def unwrap(slot, path):
+        if slot in slot_lookup:
+            return {**slot_lookup[slot], "path": path, "value": value}
+
+        if slot in preimages:
+            p_slot, p_key = preimages[slot]["slot"], preimages[slot]["key"]
+            from_slot = unwrap(p_slot, path + [p_key])
+            from_key = unwrap(p_key, path + [p_slot])
+            return from_slot or from_key
+
+    return unwrap(slot, [])
+
+
 @app.command()
 def layout(txhash: str):
-    contract_layout = json.load(open("layout.json"))["storage_layout"]
-    slots_in_layout = {
-        item["slot"]: {"name": name, "type": item["type"]} for name, item in contract_layout.items()
+    storage_layout = {"0xda816459f1ab5631232fe5e97a05bbbb94970c95": json.load(open("layout.json"))}
+    slot_lookup = {
+        contract: {int_to_bytes32(item["pos"]): item for item in data}
+        for contract, data in storage_layout.items()
     }
-    debug(slots_in_layout)
+    # debug(storage_layout)
 
-    state_diff = get_state_diff(txhash)
-    debug(state_diff)
+    storage_diff = get_storage_diff(txhash)
+    # debug(storage_diff)
 
     preimages = find_preimages(txhash)
+    debug(preimages)
+
+    for contract, storage in storage_diff.items():
+        if contract not in slot_lookup:
+            print(f"no layout avaiable for {contract}")
+            continue
+        for slot, value in storage.items():
+            item = unwrap_slot(slot, value, preimages, slot_lookup[contract])
+            debug(item)
 
 
 if __name__ == "__main__":

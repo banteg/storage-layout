@@ -1,3 +1,4 @@
+import json
 from typing import Dict, List, Tuple
 
 import requests
@@ -7,6 +8,7 @@ from typer import Typer
 from evm_trace import vmtrace
 from hexbytes import HexBytes
 from eth_utils import keccak
+from toolz import valfilter
 
 app = Typer()
 
@@ -47,6 +49,15 @@ def get_storage_values(account, keys):
     return list(values)
 
 
+def get_state_diff(txhash: str):
+    state_diff = make_request("trace_replayTransaction", [txhash, ["stateDiff"]])["stateDiff"]
+    storage_diff = {
+        contract: {slot: item["*"]["to"] for slot, item in diff["storage"].items()}
+        for contract, diff in state_diff.items()
+    }
+    return valfilter(bool, storage_diff)
+
+
 def to_int(value):
     return int.from_bytes(value, "big")
 
@@ -63,7 +74,7 @@ def find_preimages(txhash: str):
             preimage = HexBytes(frame.memory[offset : offset + size])
             hashed = HexBytes(keccak(preimage))
             key, slot = preimage[:32], preimage[32:]
-            preimages[hashed] = {"key": key, "slot": slot}
+            preimages[hashed.hex()] = {"key": key.hex(), "slot": slot.hex()}
             debug("found preimage", size, offset, preimage, key, slot)
 
         if frame.op == "SSTORE":
@@ -71,6 +82,7 @@ def find_preimages(txhash: str):
             debug(slot, value, slot in preimages)
 
     debug(preimages)
+    return preimages
 
 
 @app.command()
@@ -80,6 +92,20 @@ def storage(contract: str):
 
     kv = dict(zip(keys, values))
     debug(kv)
+
+
+@app.command()
+def layout(txhash: str):
+    contract_layout = json.load(open("layout.json"))["storage_layout"]
+    slots_in_layout = {
+        item["slot"]: {"name": name, "type": item["type"]} for name, item in contract_layout.items()
+    }
+    debug(slots_in_layout)
+
+    state_diff = get_state_diff(txhash)
+    debug(state_diff)
+
+    preimages = find_preimages(txhash)
 
 
 if __name__ == "__main__":

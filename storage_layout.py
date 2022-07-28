@@ -195,12 +195,13 @@ def index_txs(contract: str):
         need_header = False
         cached = csv.DictReader(path.open("rt"))
         for item in cached:
-            last_block = int(item["block_number"])
+            last_block = int(item["block_number"]) + 1
 
     writer = csv.DictWriter(path.open("at"), ["block_number", "transaction_hash"])
     if need_header:
         writer.writeheader()
 
+    seen = set()
     traces = chain.provider.stream_request(
         "trace_filter", [{"toAddress": [contract], "fromBlock": hex(last_block)}]
     )
@@ -208,7 +209,9 @@ def index_txs(contract: str):
     for item in bar:
         if "error" in item or item["type"] != "call" or item["action"]["callType"] != "call":
             continue
-
+        if item["transactionHash"] in seen:
+            continue
+        seen.add(item["transactionHash"])
         writer.writerow(
             {"block_number": item["blockNumber"], "transaction_hash": item["transactionHash"]}
         )

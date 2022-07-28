@@ -138,6 +138,17 @@ def decode_types(item):
     return {item["name"]: out}
 
 
+def merge(source, destination):
+    for key, value in source.items():
+        if isinstance(value, dict):
+            node = destination.setdefault(key, {})
+            merge(value, node)
+        else:
+            destination[key] = value
+
+    return destination
+
+
 @app.command()
 def layout(txhash: str):
     storage_layout = {"0xda816459f1ab5631232fe5e97a05bbbb94970c95": json.load(open("layout.json"))}
@@ -158,9 +169,10 @@ def layout(txhash: str):
         for slot, value in storage.items():
             item = unwrap_slot(slot, value, preimages, slot_lookup[contract])
             if item is None:
+                # print(f"{slot} not decoded")
                 continue
             decoded = decode_types(item)
-            results[contract].update(decoded)
+            results[contract] = merge(results[contract], decoded)
 
     debug(results)
 

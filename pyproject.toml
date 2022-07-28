@@ -4,7 +4,7 @@ line-length = 100
 [tool.poetry]
 name = "storage-layout"
 version = "0.1.0"
-description = "readable evm state difss"
+description = "readable evm state diffs"
 authors = ["banteg <banteg@pm.me>"]
 license = "MIT"
 

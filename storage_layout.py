@@ -69,7 +69,6 @@ def to_int(value):
     raise ValueError("invalid type %s", type(value))
 
 
-@app.command()
 def find_preimages(txhash: str):
     response = raw_request("trace_replayTransaction", [txhash, ["vmTrace"]])
     trace = vmtrace.from_rpc_response(response)
@@ -155,6 +154,10 @@ def layout(txhash: str):
     debug(results)
 
 
-if __name__ == "__main__":
+def main():
     with networks.ethereum.mainnet.use_default_provider():
         app()
+
+
+if __name__ == "__main__":
+    main()

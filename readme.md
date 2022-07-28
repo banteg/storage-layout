@@ -2,6 +2,13 @@
 
 a tool to get readable state diffs and enumerate complete contract storage
 
+🚧 status: proof of concept 🚧
+
+## usage
+
+- `storage-layout storage <contract>` print all slots and values
+- `storage-layout layout <txhash>` print a decoded state diff
+
 ## how it works
 
 1. get storage layout of a contract, which comes as one of compiler output format. here i use a [modified vyper compiler](https://github.com/banteg/vyper/tree/v0.2.12-storage) with a test contract.

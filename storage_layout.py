@@ -1,16 +1,16 @@
-from collections import defaultdict
 import json
+from collections import defaultdict
 from typing import Dict, List, Tuple
 
 import requests
 from ape import chain, networks
 from devtools import debug
-from typer import Typer
+from eth_abi import decode_single, encode_single
+from eth_utils import encode_hex, keccak
 from evm_trace import vmtrace
 from hexbytes import HexBytes
-from eth_utils import keccak, encode_hex
 from toolz import valfilter
-from eth_abi import decode_single, encode_single
+from typer import Typer
 
 app = Typer()
 

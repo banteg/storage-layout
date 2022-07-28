@@ -1,5 +1,7 @@
+import csv
 import json
 from collections import defaultdict
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import requests
@@ -10,6 +12,7 @@ from eth_utils import encode_hex, keccak
 from evm_trace import vmtrace
 from hexbytes import HexBytes
 from toolz import valfilter
+from tqdm import tqdm
 from typer import Typer
 
 app = Typer()
@@ -175,6 +178,41 @@ def layout(txhash: str):
             results[contract] = merge(results[contract], decoded)
 
     debug(results)
+
+
+@app.command()
+def index_txs(contract: str):
+    """
+    Find all calls of a contract which might have modified storage.
+    """
+    path = Path(f"cache/calls/{contract}.csv")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    last_block = 0
+    head = chain.blocks.height
+    need_header = True
+
+    if path.exists():
+        need_header = False
+        cached = csv.DictReader(path.open("rt"))
+        for item in cached:
+            last_block = int(item["block_number"])
+
+    writer = csv.DictWriter(path.open("at"), ["block_number", "transaction_hash"])
+    if need_header:
+        writer.writeheader()
+
+    traces = chain.provider.stream_request(
+        "trace_filter", [{"toAddress": [contract], "fromBlock": hex(last_block)}]
+    )
+    bar = tqdm(traces, unit=" traces")
+    for item in bar:
+        if "error" in item or item["type"] != "call" or item["action"]["callType"] != "call":
+            continue
+
+        writer.writerow(
+            {"block_number": item["blockNumber"], "transaction_hash": item["transactionHash"]}
+        )
+        bar.set_description_str(f'blocks_remaining={head - item["blockNumber"]}')
 
 
 def main():

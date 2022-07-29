@@ -189,6 +189,7 @@ def index_txs(contract: str):
     path = Path(f"cache/calls/{contract}.csv")
     path.parent.mkdir(parents=True, exist_ok=True)
     last_block = 0
+    traces_found = 0
     head = chain.blocks.height
     need_header = True
 
@@ -197,6 +198,7 @@ def index_txs(contract: str):
         cached = csv.DictReader(path.open("rt"))
         for item in cached:
             last_block = int(item["block_number"]) + 1
+            traces_found += 1
 
     writer = csv.DictWriter(path.open("at"), ["block_number", "transaction_hash"])
     if need_header:
@@ -218,10 +220,11 @@ def index_txs(contract: str):
             continue
 
         seen.add(item["transactionHash"])
+        traces_found += 1
         writer.writerow(
             {"block_number": item["blockNumber"], "transaction_hash": item["transactionHash"]}
         )
-        bar.set_description_str(f'blocks_remaining={head - item["blockNumber"]:,d}')
+        bar.set_postfix({"blocks": f"{head - item['blockNumber']:,d}", "traces": traces_found})
 
 
 def main():

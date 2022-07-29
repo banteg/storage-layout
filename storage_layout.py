@@ -185,6 +185,7 @@ def index_txs(contract: str):
     """
     Find all calls of a contract which might have modified storage.
     """
+    contract = contract.lower()
     path = Path(f"cache/calls/{contract}.csv")
     path.parent.mkdir(parents=True, exist_ok=True)
     last_block = 0
@@ -207,15 +208,20 @@ def index_txs(contract: str):
     )
     bar = tqdm(traces, unit=" traces")
     for item in bar:
-        if "error" in item or item["type"] != "call" or item["action"]["callType"] != "call":
+        if "error" in item:
             continue
         if item["transactionHash"] in seen:
             continue
+        is_call = item["type"] == "call" and item["action"]["callType"] == "call"
+        is_create = item["type"] == "create" and item["result"]["address"] == "contract"
+        if not is_call and not is_create:
+            continue
+
         seen.add(item["transactionHash"])
         writer.writerow(
             {"block_number": item["blockNumber"], "transaction_hash": item["transactionHash"]}
         )
-        bar.set_description_str(f'blocks_remaining={head - item["blockNumber"]}')
+        bar.set_description_str(f'blocks_remaining={head - item["blockNumber"]:,d}')
 
 
 def main():

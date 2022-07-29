@@ -24,3 +24,8 @@ how to dump the complete contract storage and print it in a readable way.
 this tool can already dump the entire storage using `parity_listStorageKeys`, but to decode it we need to collect all preimages.
 
 for this we can find all calls to the address using `trace_filter` and then `vmTrace` all transactions and record all preimages.
+
+## related work
+
+- `slither-read-storage` can do more advanced [forward storage reading](https://blog.trailofbits.com/2022/07/28/shedding-smart-contract-storage-with-slither/)
+- `sol2uml` can draw [storage layout diagrams](https://github.com/naddison36/sol2uml/tree/master/examples/storage)

@@ -7,7 +7,7 @@ from typing import Dict, List, Tuple
 import requests
 from ape import chain, networks
 from devtools import debug
-from eth_abi import decode_single, encode_single
+from eth_abi import decode, encode
 from eth_utils import encode_hex, keccak
 from evm_trace import vmtrace
 from hexbytes import HexBytes
@@ -111,7 +111,7 @@ def storage(contract: str):
 
 
 def int_to_bytes32(value):
-    return encode_hex(encode_single("uint256", value))
+    return encode_hex(encode(["uint256"], [value]))
 
 
 def unwrap_slot(slot, value, preimages, slot_lookup):
@@ -130,7 +130,7 @@ def unwrap_slot(slot, value, preimages, slot_lookup):
 
 def decode_types(item):
     values = b"".join(HexBytes(i) for i in item["path"]) + HexBytes(item["value"])
-    decoded = decode_single(item["abi_type"], values)
+    decoded = decode([item["abi_type"]], values)
     out = decoded
 
     if item["path"]:
@@ -161,8 +161,10 @@ def layout(txhash: str):
     }
 
     storage_diff = get_storage_diff(txhash)
+    debug(storage_diff)
 
     preimages = find_preimages(txhash)
+    debug(preimages)
 
     results = defaultdict(dict)
 
@@ -172,7 +174,7 @@ def layout(txhash: str):
         for slot, value in storage.items():
             item = unwrap_slot(slot, value, preimages, slot_lookup[contract])
             if item is None:
-                # print(f"{slot} not decoded")
+                debug("could not decode", slot)
                 continue
             decoded = decode_types(item)
             results[contract] = merge(results[contract], decoded)

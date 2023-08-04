@@ -86,7 +86,7 @@ def find_preimages(txhash: str):
     preimages = {}
 
     for frame in vmtrace.to_trace_frames(trace):
-        if frame.op == "SHA3":
+        if frame.op in ["SHA3", "KECCAK256"]:
             size, offset = [to_int(x) for x in frame.stack[-2:]]
             if size != 64:
                 continue
